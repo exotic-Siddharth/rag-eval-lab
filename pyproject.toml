@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "raglab"
+version = "0.1.0"
+description = "Retrieval-augmented QA with a measurable evaluation harness"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+dependencies = ["numpy", "scipy", "pyyaml", "fastapi", "uvicorn", "pydantic>=2"]
+
+[project.optional-dependencies]
+ml = ["torch", "transformers", "sentence-transformers"]
+claude = ["anthropic"]
+dev = ["pytest", "httpx", "ruff"]
+
+[project.scripts]
+raglab = "raglab.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["raglab*"]
+
+[tool.ruff]
+line-length = 150
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B"]
+ignore = ["B905"]
