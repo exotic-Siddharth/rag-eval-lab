@@ -15,6 +15,7 @@ number in this README comes from a run in [`results/`](results/).
 | Reranking | +11 to +13 points Recall@1 on 64 to 130-word chunks, but only **+2** on 256-word chunks (the cross-encoder was trained on short passages) |
 | Dense-only retrieval | the weakest option here, because SQuAD questions reuse the passage's wording, which favours lexical matching |
 | Abstention | SQuAD 2.0 unanswerable questions are adversarial: the retrieval-confidence gate separates them with AUROC of only 0.63, so the generator has to do the abstaining |
+| Reader vs retriever | the gold span reaches the generator for 96% of answerable questions, but Qwen3-0.6B scores HasAns F1 0.31 on them: errors come from the reader |
 | Metric trap | with half the questions unanswerable, "abstain on everything" scores F1 0.50. Every guardrail setting is reported against that reference row |
 
 ## How it works
@@ -121,8 +122,27 @@ Pipeline: paragraph chunks → hybrid → rerank → top 3 chunks → generator.
   abstention; the reader has to.
 * Online retrieval latency on a laptop CPU: p50 1.3 s / p95 2.7 s, almost all of it the cross-encoder.
 
-**Local LLM (Qwen3-0.6B)**: the CPU run is in progress; results will be added to
-`results/e2e_local_Qwen3-0.6B.md`.
+**Local LLM (Qwen3-0.6B)**: greedy decoding, told to answer with the shortest exact phrase or `NO_ANSWER` ([results/e2e_local_Qwen3-0.6B.md](results/e2e_local_Qwen3-0.6B.md)):
+
+| setting | EM | F1 | HasAns F1 | NoAns acc | answer rate |
+|---|---|---|---|---|---|
+| reference: abstain on everything | 0.500 | 0.500 | 0.000 | 1.000 | 0.000 |
+| no guardrails | 0.328 | 0.399 | 0.309 | 0.490 | 0.583 |
+| confidence gate (passes 60% of tune answerables) | 0.460 | 0.496 | 0.168 | 0.825 | 0.260 |
+| grounding check (all answer words in context) | 0.430 | 0.476 | 0.257 | 0.695 | 0.367 |
+| gate + grounding (>= 0.5) | 0.465 | 0.501 | 0.168 | 0.835 | 0.230 |
+
+* **The reader is the bottleneck, not retrieval.** Context recall is the same 0.96, yet HasAns F1 is
+  only 0.315 when the gold chunk was in the context. A 0.6B model extracts short spans much better than
+  the sentence baseline (0.309 vs 0.180 HasAns F1) but abstains on only 49% of unanswerable questions.
+* **Guardrails trade answers for abstentions.** Each one raises overall F1 by cutting wrong answers on
+  unanswerable questions, but also drops correct answers. The best combination only ties the
+  abstain-on-everything reference. Beating it needs a stronger reader (the Claude generator is wired
+  in for this; see the quickstart), not a stricter filter.
+* The grounding check is the better single guardrail: it keeps 83% of the model's answerable-question
+  F1 (0.257 of 0.309), while the retrieval gate keeps 54%.
+* Latency on a laptop CPU: generation p50 6.0 s / p95 14.9 s, retrieval p50 2.3 s. About 676 input
+  and 9 output tokens per question.
 
 ## Quickstart
 
