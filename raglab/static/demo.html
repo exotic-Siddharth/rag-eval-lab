@@ -41,7 +41,6 @@
     .label { color: var(--muted); font-size: 0.85rem; }
     .chip-ex { font-size: 0.82rem; }
     .chip-ex .tag { color: var(--warn); }
-    .modes label { font-size: 0.85rem; margin-right: 14px; cursor: pointer; white-space: nowrap; }
     details { margin-top: 12px; }
     summary { cursor: pointer; color: var(--muted); font-size: 0.85rem; }
     .titles { color: var(--muted); font-size: 0.82rem; margin-top: 6px; }
@@ -49,7 +48,10 @@
     .spin { display: inline-block; width: 0.8em; height: 0.8em; border: 2px solid var(--line); border-top-color: var(--accent);
             border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: -1px; margin-right: 6px; }
     @keyframes spin { to { transform: rotate(360deg); } }
-    .answer { font-size: 1.35rem; font-weight: 700; }
+    .answers { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+    .ans { border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; background: var(--bg); }
+    .who { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 6px; }
+    .answer { font-size: 1.15rem; font-weight: 700; }
     .answer.ok { color: var(--ok); }
     .answer.abstain { color: var(--warn); }
     .answer.blocked { color: var(--bad); }
@@ -75,7 +77,7 @@
     li { margin-bottom: 6px; }
     li b { color: var(--text); }
     footer { margin-top: 36px; color: var(--muted); font-size: 0.85rem; }
-    @media (max-width: 560px) { h1 { font-size: 1.6rem; } .ask { flex-direction: column; } .phead { flex-direction: column; gap: 0; } }
+    @media (max-width: 560px) { h1 { font-size: 1.6rem; } .ask { flex-direction: column; } .phead { flex-direction: column; gap: 0; } .answers { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
@@ -96,7 +98,6 @@
       <input type="text" id="q" maxlength="1000" placeholder="e.g. In what country is Normandy located?" autocomplete="off">
       <button class="primary" id="go" type="submit">Ask</button>
     </form>
-    <div class="row modes" id="modes"></div>
     <div class="row" id="examples"><span class="label">Loading examples…</span></div>
     <details>
       <summary>Which articles can I ask about?</summary>
@@ -121,7 +122,7 @@
     <li><b>Chunking:</b> each article is split into paragraphs.</li>
     <li><b>Hybrid retrieval:</b> BM25 (keyword match) and a bge-small embedding model each rank the paragraphs; reciprocal rank fusion combines the two lists.</li>
     <li><b>Reranking:</b> a MiniLM cross-encoder rescores the top 20 by reading the question and passage together.</li>
-    <li><b>Reader:</b> the top 3 passages go to Qwen3-0.6B, told to answer with the shortest exact phrase or say it cannot. The extractive option skips the LLM and returns the best-matching sentence.</li>
+    <li><b>Reader:</b> the top 3 passages go to Qwen3-0.6B, told to answer with the shortest exact phrase or say it cannot. Next to it, an extractive baseline (no LLM) returns the sentence that shares the most words with the question.</li>
     <li><b>Guardrails:</b> prompt-injection checks on the question and passages, and a grounding check that blocks answers not supported by the passages.</li>
   </ul>
 
@@ -129,7 +130,7 @@
   <ul>
     <li>For questions that have an answer, this retrieval pipeline ranks a passage containing it first <b>90%</b> of the time (Recall@1 0.900, nDCG@10 0.949).</li>
     <li>The <b>reader is the weak link</b>: Qwen3-0.6B often gives a partial answer or abstains even when the right passage is there. SQuAD 2.0 also has "trick" questions with no answer in the article (one is always among the examples); there the right behaviour is to abstain.</li>
-    <li>Running on a free 2-CPU server, so the LLM answer can take 10–20 seconds. The passages appear first.</li>
+    <li>This runs on a free 2-CPU server: the passages take 1–2 seconds and the LLM answer usually 5–10 seconds.</li>
   </ul>
 
   <footer>Built by <a href="https://exotic-siddharth.github.io">Siddharth Patel</a> · B.Tech + M.Tech CSE, NIT Patna · Questions and articles from SQuAD 2.0 (CC BY-SA 4.0)</footer>
@@ -137,8 +138,8 @@
 
 <script>
   const $ = (id) => document.getElementById(id);
-  const MODE_LABELS = { local: "Qwen3-0.6B (small LLM, slower)", extractive: "Extractive (instant, no LLM)" };
-  let busy = false;
+  const READERS = { local: "🤖 Small LLM · Qwen3-0.6B", extractive: "📄 Extractive baseline · no LLM" };
+  let busy = false, readers = ["local", "extractive"];
 
   function esc(s) {
     return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -174,8 +175,6 @@
     return r.json();
   }
 
-  function mode() { const m = document.querySelector("input[name=mode]:checked"); return m ? m.value : undefined; }
-
   function renderPassages(passages, phrases) {
     const card = (p, i) => `
       <div class="passage ${p.context ? "ctx" : ""}">
@@ -199,6 +198,15 @@
     return `<div class="expected">📘 SQuAD's expected answer: <b>${exp.answers.map(esc).join(" / ")}</b></div>`;
   }
 
+  function answerCard(key, a) {
+    if (!a) return `<div class="who">${READERS[key] || key}</div><div class="meta"><span class="spin"></span>${key === "local" ? "Reading the passages (about 5–10 s)…" : "Working…"}</div>`;
+    const t = a.latency_ms || {};
+    const body = a.abstained
+      ? `<div class="answer abstain">🤐 No answer</div><div class="meta">${esc(a.explanation || "")}</div>`
+      : `<div class="answer ok">${esc(a.answer)}</div><div class="meta">${a.support != null ? "grounding " + Math.round(a.support * 100) + "% · " : ""}read in ${ms(t.generate_ms || 0)}${a.cached ? " (cached)" : ""}</div>`;
+    return `<div class="who">${READERS[key] || esc(a.generator)}</div>` + body;
+  }
+
   async function ask(question) {
     if (busy || !question.trim()) return;
     busy = true; $("go").disabled = true;
@@ -211,23 +219,25 @@
         $("answerbox").innerHTML = `<div class="answer blocked">🛡️ Blocked by a guardrail</div><div class="meta">${esc(r.explanation)}</div>`;
         $("answerbox").style.display = "block"; setStatus(""); return;
       }
-      const exp = r.expected;
-      renderPassages(r.passages, exp && exp.answerable ? exp.answers : []);
-      const m = mode();
-      const slow = m === "local";
-      setStatus(`<span class="spin"></span>Found passages in ${ms((r.latency_ms.retrieve_ms || 0) + (r.latency_ms.rerank_ms || 0))}. ` +
-        (slow ? "The small LLM is reading them now (about 10–20 s on this free server)…" : "Picking the best sentence…"));
-      const a = await api("/api/answer", { question, hits: r.hits, generator: m, latency_ms: r.latency_ms });
-      const t = a.latency_ms || {};
-      const timing = [["retrieve", t.retrieve_ms], ["rerank", t.rerank_ms], ["read", t.generate_ms], ["total", t.total_ms]]
-        .filter(([, v]) => v !== undefined).map(([k, v]) => `<span>${k} ${ms(v)}</span>`).join("");
-      const head = a.abstained
-        ? `<div class="answer abstain">🤐 No answer</div><div class="meta">${esc(a.explanation || "")}</div>`
-        : `<div class="answer ok">${esc(a.answer)}</div><div class="meta">Answered by ${esc(a.generator)}${a.cached ? " (cached)" : ""}${a.support != null ? " · grounding " + Math.round(a.support * 100) + "%" : ""}</div>`;
-      $("answerbox").innerHTML = head + expectedHtml(exp) + `<div class="timing">${timing}</div>`;
-      $("answerbox").style.display = "block";
-      if (!a.abstained) renderPassages(r.passages, [a.answer].concat(exp && exp.answerable ? exp.answers : []));
+      const exp = r.expected, gold = exp && exp.answerable ? exp.answers : [];
+      const lat = r.latency_ms || {};
+      renderPassages(r.passages, gold);
       setStatus("");
+      const order = ["extractive", "local"].filter((k) => readers.includes(k));
+      $("answerbox").innerHTML = expectedHtml(exp) +
+        `<div class="answers">${["local", "extractive"].filter((k) => readers.includes(k)).map((k) => `<div class="ans" id="ans-${k}">${answerCard(k)}</div>`).join("")}</div>` +
+        `<div class="timing"><span>retrieve ${ms(lat.retrieve_ms || 0)}</span>${lat.rerank_ms !== undefined ? `<span>rerank ${ms(lat.rerank_ms)}</span>` : ""}</div>`;
+      $("answerbox").style.display = "block";
+      $("answerbox").scrollIntoView({ behavior: "smooth", block: "start" });
+      for (const k of order) {  // extractive first: it is instant
+        try {
+          const a = await api("/api/answer", { question, hits: r.hits, generator: k, latency_ms: lat });
+          $("ans-" + k).innerHTML = answerCard(k, a);
+          if (k === "local" && !a.abstained) renderPassages(r.passages, [a.answer].concat(gold));
+        } catch (e) {
+          $("ans-" + k).innerHTML = `<div class="who">${READERS[k] || k}</div><div class="meta">Could not get this answer: ${esc(e.message)}</div>`;
+        }
+      }
     } catch (e) {
       setStatus("Something went wrong: " + esc(e.message) + ". If the server was asleep, wait a moment and try again.");
     } finally {
@@ -256,8 +266,7 @@
       $("ndocs").textContent = info.documents;
       $("ctxk").textContent = info.context_k;
       $("titles").textContent = info.titles.join(" · ");
-      $("modes").innerHTML = '<span class="label">Answer with:</span>' + info.generators.map((g, i) =>
-        `<label><input type="radio" name="mode" value="${esc(g.key)}" ${i === 0 ? "checked" : ""}> ${esc(MODE_LABELS[g.key] || g.name)}</label>`).join("");
+      readers = info.generators.map((g) => g.key);
     } catch (e) { setStatus("The server is starting up. Please refresh in a minute."); }
     loadExamples();
   })();
