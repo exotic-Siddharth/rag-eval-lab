@@ -22,6 +22,9 @@ raglab = "raglab.cli:main"
 [tool.setuptools.packages.find]
 include = ["raglab*"]
 
+[tool.setuptools.package-data]
+raglab = ["static/*.html"]
+
 [tool.ruff]
 line-length = 150
 

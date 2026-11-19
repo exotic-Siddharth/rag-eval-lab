@@ -158,6 +158,7 @@ ANTHROPIC_API_KEY=... python -m raglab eval-e2e --generator claude
 
 python -m raglab ask "What century did the Normans first gain their separate identity?"
 python -m raglab serve                                  # http://127.0.0.1:8000/docs
+python -m raglab demo                                   # browser demo at http://127.0.0.1:8000
 ```
 
 ```bash
@@ -170,6 +171,11 @@ The response includes the answer, an abstention reason (`ok`, `low_confidence`, 
 counts, cost and whether the LLM cache was hit. `/stats` aggregates these over recent requests.
 
 Docker: `docker build -t rag-eval-lab . && docker run -p 8000:8000 rag-eval-lab`.
+
+**Browser demo.** `python -m raglab demo` serves a page that shows the reranked passages first, then the
+answer (Qwen3-0.6B or the extractive baseline), the reason for any abstention, per-stage latency and,
+for the example questions, SQuAD's expected answer. [space/](space/) builds it as a Hugging Face Space:
+data and models are downloaded and every passage is embedded at build time.
 
 ### Your own documents
 
@@ -208,9 +214,11 @@ raglab/
   evaluate.py     retrieval grid + end-to-end eval with guardrail ablation
   metrics.py      Recall@k, MRR, nDCG, SQuAD EM/F1, AUROC
   api.py          FastAPI service
+  demo.py         browser demo (static/demo.html) over the same pipeline
 configs/          retrieval_grid.yaml, default.yaml
+space/            Dockerfile and card for the Hugging Face Space
 results/          every table in this README, as JSON + Markdown
-tests/            27 unit tests (chunk offsets, metrics, retrieval, guardrails, API)
+tests/            30 unit tests (chunk offsets, metrics, retrieval, guardrails, API, demo)
 ```
 
 ## License

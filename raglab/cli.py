@@ -35,6 +35,13 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--host", default="127.0.0.1")
     p.add_argument("--port", type=int, default=8000)
 
+    p = sub.add_parser("demo", help="run the browser demo (UI + API)")
+    p.add_argument("--config", default="configs/default.yaml")
+    p.add_argument("--generators", default="local,extractive", help="comma-separated keys from the config's generators")
+    p.add_argument("--host", default="127.0.0.1")
+    p.add_argument("--port", type=int, default=8000)
+    p.add_argument("--warm-only", action="store_true", help="download data and models, fill caches, then exit")
+
     args = parser.parse_args(argv)
     if args.cmd == "download":
         print(download_squad(args.path))
@@ -60,6 +67,14 @@ def main(argv: list[str] | None = None) -> None:
         from .api import create_app
 
         uvicorn.run(create_app(args.config), host=args.host, port=args.port)
+    elif args.cmd == "demo":
+        from .demo import create_demo_app
+
+        app = create_demo_app(args.config, tuple(g for g in args.generators.split(",") if g))
+        if not args.warm_only:
+            import uvicorn
+
+            uvicorn.run(app, host=args.host, port=args.port)
 
 
 if __name__ == "__main__":
