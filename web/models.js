@@ -5,7 +5,7 @@ import { AutoModelForSequenceClassification, AutoTokenizer, pipeline } from "@hu
 export const EMBED_MODEL = "Xenova/bge-small-en-v1.5"; // BAAI/bge-small-en-v1.5
 export const RERANK_MODEL = "Xenova/ms-marco-MiniLM-L-6-v2"; // cross-encoder/ms-marco-MiniLM-L-6-v2
 export const QUERY_PREFIX = "Represent this sentence for searching relevant passages: ";
-export const DTYPE = "q8"; // 8-bit weights: about 57 MB for both models instead of about 220 MB
+export const DTYPE = "q8"; // 8-bit weights: about 58 MB for both models instead of about 220 MB
 
 export async function loadModels({ dtype = DTYPE, onProgress } = {}) {
   const opts = { dtype, progress_callback: onProgress };
