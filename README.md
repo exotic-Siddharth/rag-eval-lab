@@ -172,10 +172,17 @@ counts, cost and whether the LLM cache was hit. `/stats` aggregates these over r
 
 Docker: `docker build -t rag-eval-lab . && docker run -p 8000:8000 rag-eval-lab`.
 
-**Browser demo.** `python -m raglab demo` serves a page that shows the reranked passages first, then the
-answer (Qwen3-0.6B or the extractive baseline), the reason for any abstention, per-stage latency and,
-for the example questions, SQuAD's expected answer. [space/](space/) builds it as a Hugging Face Space:
-data and models are downloaded and every passage is embedded at build time.
+**Live demo (runs in your browser): [exotic-siddharth.github.io/rag-eval-lab](https://exotic-siddharth.github.io/rag-eval-lab/).**
+[web/](web/) is a JavaScript port of the retrieval pipeline (BM25, bge-small, RRF, MiniLM cross-encoder,
+guardrails, extractive reader) running 8-bit ONNX versions of the same models with transformers.js, so it
+needs no server. `web/export_data.py` exports the passages and the Python pipeline's results on 200
+held-out questions; `web/parity.mjs` runs the port on the same questions and fails the build if it picks
+a different top passage too often or loses Recall@1. The page shows the latest parity numbers.
+
+**Server demo.** `python -m raglab demo` serves a page that also runs the Qwen3-0.6B reader: it shows the
+reranked passages first, then the LLM and extractive answers side by side, the reason for any abstention,
+per-stage latency and, for the example questions, SQuAD's expected answer. [space/](space/) builds it as a
+Docker image for Hugging Face Spaces (which now needs a paid plan for Docker Spaces).
 
 ### Your own documents
 
@@ -217,6 +224,7 @@ raglab/
   demo.py         browser demo (static/demo.html) over the same pipeline
 configs/          retrieval_grid.yaml, default.yaml
 space/            Dockerfile and card for the Hugging Face Space
+web/              in-browser demo: rag.js (pipeline port), models.js, index.html, export + parity scripts
 results/          every table in this README, as JSON + Markdown
 tests/            30 unit tests (chunk offsets, metrics, retrieval, guardrails, API, demo)
 ```

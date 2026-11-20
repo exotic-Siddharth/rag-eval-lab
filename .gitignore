@@ -8,3 +8,4 @@ data/
 .ruff_cache/
 *.egg-info/
 build/
+node_modules/

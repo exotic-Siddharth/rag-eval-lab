@@ -1,0 +1,14 @@
+{
+  "name": "raglab-web",
+  "private": true,
+  "type": "module",
+  "description": "In-browser version of the raglab demo and its parity check against the Python pipeline",
+  "scripts": {
+    "embed": "node embed_chunks.mjs build",
+    "parity": "node parity.mjs build",
+    "test": "node --test test_rag.mjs"
+  },
+  "dependencies": {
+    "@huggingface/transformers": "4.3.2"
+  }
+}
